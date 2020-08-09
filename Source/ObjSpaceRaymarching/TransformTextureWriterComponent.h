@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Components/SceneCaptureComponent2D.h"
+#include "Engine/SceneCapture2D.h"
 #include "TransformTextureWriterComponent.generated.h"
 
 
@@ -15,6 +17,9 @@ public:
 
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category=Material)
 	class UMaterial* material;
+	
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category=Material)
+	class ASceneCapture2D* sceneCapture;
 
 protected:
 	virtual void BeginPlay() override;
@@ -27,4 +32,5 @@ private:
 	TArray<AActor*> actors;
     UTexture2D* texture;
 	UMaterialInstanceDynamic* materialInstance;
+	USceneCaptureComponent2D* sceneCaptureComponent;
 };

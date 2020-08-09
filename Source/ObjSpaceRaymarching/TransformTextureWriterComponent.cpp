@@ -1,5 +1,7 @@
 #include "TransformTextureWriterComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "SceneViewport.h"
 
 UTransformTextureWriterComponent::UTransformTextureWriterComponent()
 {
@@ -9,7 +11,26 @@ UTransformTextureWriterComponent::UTransformTextureWriterComponent()
 void UTransformTextureWriterComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	
+    
+    // SceneDepthを手動で作成するので、ここで作成し、SceneCapture2Dに設定する
+    if(this->sceneCapture != nullptr)
+    {
+        auto playerController = GetWorld()->GetFirstPlayerController();
+        ULocalPlayer* LocalPlayer = Cast<ULocalPlayer>(playerController->Player);
+        FIntPoint viewportSize = LocalPlayer->ViewportClient->Viewport->GetSizeXY();
+        // Camera(Camera Option)のContainAspectRatioに対応できていない（どこにある？）
+
+        auto textureTarget = NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient);
+        textureTarget->RenderTargetFormat = RTF_R32f;
+        textureTarget->InitAutoFormat(viewportSize.X, viewportSize.Y);
+        textureTarget->ClearColor = FLinearColor::Blue;
+        textureTarget->UpdateResource();
+        
+        this->sceneCaptureComponent = Cast<USceneCaptureComponent2D>(this->sceneCapture->GetComponentByClass(USceneCaptureComponent2D::StaticClass()));
+        if(this->sceneCaptureComponent != nullptr)
+            this->sceneCaptureComponent->TextureTarget = textureTarget;
+    }
+
 	// ワールドに存在するタグ付きのアクターを取得 (TArray<AActor*> actors)
 	UGameplayStatics::GetAllActorsWithTag(this->GetWorld(), "MetaballObject", this->actors);
 
@@ -26,6 +47,9 @@ void UTransformTextureWriterComponent::BeginPlay()
         this->materialInstance->SetFlags(RF_Transient);
         this->materialInstance->SetScalarParameterValue(FName(TEXT("ActorsNum")), this->actors.Num());
         this->materialInstance->SetTextureParameterValue(FName(TEXT("MetaballBuffer")), this->texture);
+
+        if(this->sceneCaptureComponent != nullptr)
+            this->materialInstance->SetTextureParameterValue(FName(TEXT("SceneDepth")), this->sceneCaptureComponent->TextureTarget);
 
         // 各アクターのStaticMeshComponentのマテリアルを差し替える
         for(int i=0 ; i<this->actors.Num() ; ++i)
@@ -46,8 +70,24 @@ void UTransformTextureWriterComponent::BeginPlay()
 
 void UTransformTextureWriterComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-    this->texture->ConditionalBeginDestroy();
-    this->materialInstance->ConditionalBeginDestroy();
+    if(this->texture != nullptr)
+    {
+        this->texture->ConditionalBeginDestroy();
+        this->texture = nullptr;
+    }
+
+    if(this->materialInstance != nullptr)
+    {
+        this->materialInstance->ConditionalBeginDestroy();
+        this->materialInstance = nullptr;
+    }
+
+    if(this->sceneCaptureComponent != nullptr)
+    {
+        this->sceneCaptureComponent->TextureTarget->ConditionalBeginDestroy();
+        this->sceneCaptureComponent = nullptr;
+    }
+
 	Super::EndPlay(EndPlayReason);
 }
 
